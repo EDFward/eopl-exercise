@@ -61,7 +61,7 @@ S-exp  ::= Symbol | S-list
 ; down: List -> List
 ; usage: (down '(1 2 3)) = ((1) (2) (3))
 (define (down lst)
-  map (list) lst)
+  (map list lst))
 
 ; Exercise 1.18: Swap occurrences of s1 and s2.
 ; swapper: Val Val S-list -> S-list
