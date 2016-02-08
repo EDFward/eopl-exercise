@@ -1,6 +1,8 @@
 #lang racket
 (require racket/block)
 
+; Data structure representation.
+
 ; Exercise 2.5: Implement 'env' in association-list representation.
 ; Env is a 2-list containing saved variable/value pair and remaining env.
 ; empty-env: () -> Env
@@ -81,4 +83,32 @@
    (extend-envr
     'z 100 (extend-envr 'm 101 (extend-envr 'n 102 (empty-env))))))
 
+; Procedural representation.
 
+; Exercise 2.12: Implement stack using procedure representation.
+; Stack is a function taking a symbol as the message to determine
+; corresponding behavior.
+; empty-stack: () -> Stack
+(define (empty-stack)
+  (lambda (msg)
+    (cond
+      [(eqv? msg 'empty?) #t]
+      [(eqv? msg 'top) (error "top on empty stack")]
+      [(eqv? msg 'pop) (error "pop on empty stack")])))
+; push: Val Stack -> Stack
+(define (push v stack)
+  (lambda (msg)
+    (cond
+      [(eqv? msg 'empty?) #f]
+      [(eqv? msg 'top) v]
+      [(eqv? msg 'pop) stack])))
+; top: Stack -> Val
+(define (top stack)
+  (stack 'top))
+; empty-stack?: Stack -> Bool
+(define (empty-stack? stack)
+  (stack 'empty?))
+; pop: Stack -> Stack
+; Note: Surprise! 'pop' is an observer!
+(define (pop stack)
+  (stack 'pop))
