@@ -143,3 +143,56 @@
    (red-node
     (leaf-rb-node 11)
     (blue-node (list (leaf-rb-node 117) (leaf-rb-node 14))))))
+
+; Exercise: 2.29: Suppose the grammar for lambda-calculus expressions is as follow:
+; Lc-exp = identifier | (lambda ({identifier}*) Lc-exp | (Lc-exp {Lc-exp}*)
+; Write the new data type and a parser.
+(define-datatype lc-exp lc-exp?
+  (var-exp [var symbol?])
+  (lambda-exp
+   [bounded-vars (list-of symbol?)]
+   [body lc-exp?])
+  (app-exp
+   [rator lc-exp?]
+   [rands (list-of lc-exp?)]))
+
+; parse-lc-exp: Val -> LcExp
+; Assume input is always valid.
+(define (parse-lc-exp datum)
+  (cond
+    [(symbol? datum) (var-exp datum)]
+    [(pair? datum)
+     (if (eqv? (car datum) 'lambda)
+         (lambda-exp (cadr datum)
+                     (parse-lc-exp (last datum)))
+         (app-exp (parse-lc-exp (car datum))
+                  (map (curry parse-lc-exp) (cdr datum))))]))
+
+; Exercise 2.31: Write a parser to convert a prefix-list to the abstract syntax.
+(define-datatype prefix-exp prefix-exp?
+  (const-exp [num integer?])
+  (diff-exp
+   [operand1 prefix-exp?]
+   [operand2 prefix-exp?]))
+
+; parse-prefix-lst: Listof(Int|-) -> PrefixExp
+(define (parse-prefix-lst lst)
+  (letrec
+      ; parse-first-exp: List(Int|-) -> PrefixExp List
+      ; usage: Parse the first parsable expression and return the remaining.
+      ([parse-first-exp
+        (lambda (lst)
+          (cond
+            [(null? lst) (error "malformed prefix list")]
+            ; Const expression.
+            [(integer? (car lst)) (values (const-exp (car lst)) (cdr lst))]
+            ; Diff expression.
+            [(eqv? '- (car lst))
+             (let*-values
+                 ([{operand1 remains1} (parse-first-exp (cdr lst))]
+                  [{operand2 remains2} (parse-first-exp remains1)])
+               (values (diff-exp operand1 operand2) remains2))]
+            [else (error "unrecognizable symbol")]))])
+    ; Only parse the first legitimate expression, ignore the rest.
+    (let-values ([{res-exp _} (parse-first-exp lst)])
+      res-exp)))
