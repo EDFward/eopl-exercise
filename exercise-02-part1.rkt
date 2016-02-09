@@ -112,3 +112,58 @@
 ; Note: Surprise! 'pop' is an observer!
 (define (pop stack)
   (stack 'pop))
+
+; Exercise 2.13: Implement 'empty-env?' and make env a list of 2 procedures.
+; Env = (Var -> Val, () -> Bool)
+(define (empty-env2)
+  (list
+   (lambda (search-var) (error "variable not found"))
+   (lambda () #t)))
+
+(define (extend-env2 saved-var saved-val saved-env)
+  (list
+   (lambda (search-var)
+     (if (eqv? search-var saved-var)
+         saved-val
+         (apply-env2 saved-env search-var)))
+   (lambda () #f)))
+
+(define (apply-env2 env search-var)
+  ((car env) search-var))
+
+(define (empty-env2? env)
+  ((last env)))
+
+; Exercise 2.18: Implement non-empty bidirectional integer sequences.
+; number->sequence: Int -> BiSeq
+(define (number->sequence n) (list n '() '()))
+; current-element: BiSeq -> Int
+(define (current-element bs) (car bs))
+; move-to-left: BiSeq -> BiSeq
+(define (move-to-left bs)
+  (match bs
+    [(list curr left-bs right-bs)
+     (if (null? left-bs)
+         (error "fail: empty left")
+         (list (car left-bs) (cdr left-bs) (cons curr right-bs)))]))
+; move-to-right: BiSeq -> BiSeq
+(define (move-to-right bs)
+  (match bs
+    [(list curr left-bs right-bs)
+     (if (null? right-bs)
+         (error "fail: empty right")
+         (list (car right-bs) (cons curr left-bs) (cdr right-bs)))]))
+; insert-to-left: Int BiSeq -> BiSeq
+(define (insert-to-left n bs)
+  (match bs
+    [(list curr left-bs right-bs)
+     (list curr (cons n left-bs) right-bs)]))
+; insert-to-right: Int BiSeq -> BiSeq
+(define (insert-to-right n bs)
+  (match bs
+    [(list curr left-bs right-bs)
+     (list curr left-bs (cons n right-bs))]))
+; at-left-end?: BiSeq -> Bool
+(define (at-left-end? bs) (null? (cadr bs)))
+; at-right-end?: BiSeq -> Bool
+(define (at-right-end? bs) (null? (last bs)))
