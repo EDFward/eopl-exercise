@@ -2,14 +2,21 @@
 
 (require eopl/tests/chapter3/let-lang/environments)
 (require eopl/tests/chapter3/let-lang/lang)
-
 (require eopl/tests/private/utils)
+
+(require racket/block)
 
 ; Exercise 3.6: Extend the language by adding a new operator `minus`.
 ; Exercise 3.7: Extend the language to have addition, multiplication and
 ; integer quotient.
 ; Exercise 3.8: Add numeric equality predicate and numeric order predicates.
-; Exercise 3.9: Add list processing operations.
+; Exercise 3.9: Add list processing operations like `car`, `cdr`, etc.
+; Exercise 3.10: Add `list` operation to build lists directly.
+; Exercise 3.12: Support `cond` expression.
+; Exercise 3.15: Add `print` operation.
+; Exercise 3.16: Extend `let` expression to support arbitrary number of variables.
+; Exercise 3.17: Extend the language with `let*`.
+; Exercise 3.18: Add `unpack` expression.
 
 
 ; ExpVal definition.
@@ -54,7 +61,7 @@
     (expression ("zero?" "(" expression ")") zero?-exp)
     (expression ("if" expression "then" expression "else" expression) if-exp)
     (expression (identifier) var-exp)
-    (expression ("let" identifier "=" expression "in" expression) let-exp)
+    (expression ("let" (arbno identifier "=" expression) "in" expression) let-exp)
     (expression ("minus" "(" expression ")") minus-exp)
     (expression ("+" "(" expression "," expression ")") add-exp)
     (expression ("*" "(" expression "," expression ")") mul-exp)
@@ -67,6 +74,11 @@
     (expression ("car" "(" expression ")") car-exp)
     (expression ("cdr" "(" expression ")") cdr-exp)
     (expression ("null?" "(" expression ")") null?-exp)
+    (expression ("list" "(" (separated-list expression ",") ")") list-exp)
+    (expression ("cond" (arbno expression "==>" expression) "end") cond-exp)
+    (expression ("print" "(" expression ")") print-exp)
+    (expression ("let*" (arbno identifier "=" expression) "in" expression) let*-exp)
+    (expression ("unpack" (arbno identifier) "=" expression "in" expression) unpack-exp)
     ))
 
 
@@ -85,7 +97,7 @@
 ; value-of-program: Program -> ExpVal
 (define (value-of-program pgm)
   (cases program pgm
-    (a-program [exp1] (value-of exp1 init-env))))
+    (a-program [exp1] (value-of exp1 (init-env)))))
 ; value-of: Exp Env -> ExpVal
 (define (value-of exp env)
   (cases expression exp
@@ -99,16 +111,15 @@
     (zero?-exp
      [exp1]
      (let ([num1 (expval->num (value-of exp1 env))])
-       (zero? num1)))
+       (bool-val (zero? num1))))
     (if-exp
      [exp1 exp2 exp3]
      (if (expval->bool (value-of exp1 env))
          (value-of exp2 env)
          (value-of exp3 env)))
     (let-exp
-     [var exp1 body]
-     (let ([val (value-of exp1 env)])
-       (value-of body (extend-env var val env))))
+     [vars exps body]
+     (value-of body (let-extend-env vars exps env)))
     (minus-exp
      [exp1]
      (num-val (- 0 (expval->num (value-of exp1 env)))))
@@ -151,8 +162,55 @@
     (car-exp [exp1] (car (expval->list (value-of exp1 env))))
     (cdr-exp [exp1] (list-val (cdr (expval->list (value-of exp1 env)))))
     (null?-exp [exp1] (null? (expval->list (value-of exp1 env))))
+    (list-exp [exps] (list-val (map (lambda (e) (value-of e env)) exps)))
+    (cond-exp [exps1 exps2] (eval-cond exps1 exps2 env))
+    (print-exp [exp1]
+               (let ([val1 (value-of exp1 env)])
+                 (block
+                  (write val1)
+                  (num-val 1))))
+    (let*-exp
+     [vars exps body]
+     (value-of body (let*-extend-env vars exps env)))
+    (unpack-exp
+     [vars exp1 body]
+     (letrec ([vals (expval->list (value-of exp1 env))]
+              [extend-env-multiple
+               (lambda (vars vals env)
+                 (if (null? vars) env
+                     (extend-env-multiple (cdr vars) (cdr vals)
+                                          (extend-env (car vars) (car vals) env))))])
+       (if (= (length vals) (length vars))
+           (value-of body (extend-env-multiple vars vals env))
+           (eopl:error "Variable list size doesn't match given expression"))))
     ))
 
+; eval-cond: Listof(Exp) List(Exp) Env -> ExpVal
+; Evaluate cond expressions. The first argument is a list of conditional
+; expressions and the second is the corresponding result expressions. After
+; parsing those lists guarantee to be of the same size.
+(define (eval-cond conds res env)
+  (cond
+    [(null? conds) (eopl:error "No tests succeeded in cond expression")]
+    [(expval->bool (value-of (car conds) env)) (value-of (car res) env)]
+    [else (eval-cond (cdr conds) (cdr res) env)]))
+
+; let-extend-env: List(Id) List(Exp) Env -> Env
+; Extend env with multiple variables. Variable list and expression list are
+; guaranteed to be of the same size.
+(define (let-extend-env vars exps env)
+  (if (null? vars)
+      env
+      (extend-env (car vars) (value-of (car exps) env)
+                  (let-extend-env (cdr vars) (cdr exps) env))))
+
+; let*-extend-env: List(Id) List(Exp) Env -> Env
+; Similar as `let-extend-env` but works like `let*`.
+(define (let*-extend-env vars exps env)
+  (if (null? vars)
+      env
+      (let*-extend-env (cdr vars) (cdr exps)
+                       (extend-env (car vars) (value-of (car exps) env) env))))
 
 ; Tests.
 
@@ -202,10 +260,21 @@
  (greater "if greater?(1,2) then 111 else 0" 0)
  (less "if less?(1,2) then 111 else 0" 111)
 
- (list-exp "let x=4 in cons(x,cons(cons(-(x,1), emptylist),emptylist))" (4 (3)))
+ (cons-list "let x=4 in cons(x,cons(cons(-(x,1), emptylist),emptylist))" (4 (3)))
  (simple-list "cons(1,cons(2,emptylist))" (1 2))
  (simple-car-1 "car(cons(1,emptylist))" 1)
  (simple-car-2 "car(cons(2, cons(1, emptylist)))" 2)
  (simple-cdr-1 "cdr(cons(1, emptylist))" ())
  (simple-cdr-2 "cdr(cons(2,cons(1,emptylist)))" (1))
+
+ (build-list-1 "let x=4 in list(x,-(x,1),+(x,3))" (4 3 7))
+ (build-list-2 "car(cdr(list(1, 2, 3)))" 2)
+ (nested-lists "list(list(1),2,list(list(3)))" ((1) 2 ((3))))
+
+ (cond "cond zero?(11) ==> 0 less?(3,2) ==> 1 greater?(10,9) ==> 2 end" 2)
+ (print "print(*(2,16))" 1)
+
+ (multiple-let "let x = 30 in let x = -(x,1) y = -(x,2) in -(x,y)" 1)
+ (multiple-let* "let x = 30 in let* x = -(x,1) y = -(x,2) in -(x,y)" 2)
+ (unpack "let u = 7 in unpack x y = cons(u,cons(3,emptylist)) in -(x,y)" 4)
  )
