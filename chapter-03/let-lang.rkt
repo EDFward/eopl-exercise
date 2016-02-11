@@ -195,7 +195,7 @@
     [(expval->bool (value-of (car conds) env)) (value-of (car res) env)]
     [else (eval-cond (cdr conds) (cdr res) env)]))
 
-; let-extend-env: List(Id) List(Exp) Env -> Env
+; let-extend-env: List(Var) List(Exp) Env -> Env
 ; Extend env with multiple variables. Variable list and expression list are
 ; guaranteed to be of the same size.
 (define (let-extend-env vars exps env)
@@ -204,7 +204,7 @@
       (extend-env (car vars) (value-of (car exps) env)
                   (let-extend-env (cdr vars) (cdr exps) env))))
 
-; let*-extend-env: List(Id) List(Exp) Env -> Env
+; let*-extend-env: List(Var) List(Exp) Env -> Env
 ; Similar as `let-extend-env` but works like `let*`.
 (define (let*-extend-env vars exps env)
   (if (null? vars)
@@ -217,18 +217,13 @@
 ; sugar-list: List -> ExpVal
 ; Note: Wrap a normal scheme list to the format of list-val in let-lang.
 (define (sugar-list lst)
-  (let ([sugar-ele
-         (lambda (e)
-           (cond
-             [(number? e) (num-val e)]
-             [(boolean? e) (bool-val e)]
-             [(list? e) (sugar-list e)]))])
-    (if (null? lst)
-        (list-val '())
-        (let
-            ([sugar-hd (sugar-ele (car lst))]
-             [sugar-tl (sugar-list (cdr lst))])
-          (list-val (cons sugar-hd (expval->list sugar-tl)))))))
+  (list-val (map
+             (lambda (e)
+               (cond
+                 [(number? e) (num-val e)]
+                 [(boolean? e) (bool-val e)]
+                 [(list? e) (sugar-list e)]))
+             lst)))
 
 (define (equal-answer? ans correct-ans)
   (equal? ans (sloppy->expval correct-ans)))
@@ -251,29 +246,29 @@
 (check-run
  (minus-arith-1 "minus(11)" -11)
  (minus-arith-2 "minus(-(12, minus(-2)))" -10)
-
+ 
  (simple-addition "+(55, -(22,11))" 66)
  (simple-multiplication "*(2, +(8, 2))" 20)
  (simple-quotient "minus(/(9,2))" -4)
-
+ 
  (equality "if equal?(11,11) then 111 else 0" 111)
  (greater "if greater?(1,2) then 111 else 0" 0)
  (less "if less?(1,2) then 111 else 0" 111)
-
+ 
  (cons-list "let x=4 in cons(x,cons(cons(-(x,1), emptylist),emptylist))" (4 (3)))
  (simple-list "cons(1,cons(2,emptylist))" (1 2))
  (simple-car-1 "car(cons(1,emptylist))" 1)
  (simple-car-2 "car(cons(2, cons(1, emptylist)))" 2)
  (simple-cdr-1 "cdr(cons(1, emptylist))" ())
  (simple-cdr-2 "cdr(cons(2,cons(1,emptylist)))" (1))
-
+ 
  (build-list-1 "let x=4 in list(x,-(x,1),+(x,3))" (4 3 7))
  (build-list-2 "car(cdr(list(1, 2, 3)))" 2)
  (nested-lists "list(list(1),2,list(list(3)))" ((1) 2 ((3))))
-
+ 
  (cond "cond zero?(11) ==> 0 less?(3,2) ==> 1 greater?(10,9) ==> 2 end" 2)
  (print "print(*(2,16))" 1)
-
+ 
  (multiple-let "let x = 30 in let x = -(x,1) y = -(x,2) in -(x,y)" 1)
  (multiple-let* "let x = 30 in let* x = -(x,1) y = -(x,2) in -(x,y)" 2)
  (unpack "let u = 7 in unpack x y = cons(u,cons(3,emptylist)) in -(x,y)" 4)
