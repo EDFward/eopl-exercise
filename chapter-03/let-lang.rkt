@@ -1,7 +1,6 @@
 #lang eopl
 
 (require eopl/tests/chapter3/let-lang/environments)
-(require eopl/tests/chapter3/let-lang/lang)
 (require eopl/tests/private/utils)
 
 (require racket/block)
