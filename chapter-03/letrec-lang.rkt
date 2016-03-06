@@ -2,6 +2,8 @@
 
 (require eopl/tests/private/utils)
 
+; Exercise 3.32: Allow the declaration of any number of mutually recursive unary procedures.
+; Exercise 3.33: Allow mutual recursive procedures to have multiple arguments.
 
 ; Data structures.
 
@@ -51,9 +53,9 @@
    (bval expval?)
    (saved-env environment?))
   (extend-env-rec
-   (id symbol?)
-   (bvar symbol?)
-   (body expression?)
+   (p-names (list-of symbol?))
+   (bvar-lists (list-of (list-of symbol?)))
+   (p-bodys (list-of expression?))
    (saved-env environment?)))
 
 (define init-env 
@@ -75,10 +77,13 @@
                   (if (eqv? search-sym var)
                       val
                       (apply-env saved-env search-sym)))
-      (extend-env-rec (p-name b-var p-body saved-env)
-                      (if (eqv? search-sym p-name)
-                          (proc-val (procedure b-var p-body env))          
-                          (apply-env saved-env search-sym))))))
+      (extend-env-rec (p-names b-var-lists p-bodys saved-env)
+                      ; Make a 'dict' from p-name to its info.
+                      (let* ([curr-procs (map list p-names b-var-lists p-bodys)]
+                             [search-res (assoc search-sym curr-procs)])
+                        (if search-res
+                            (proc-val (procedure (cadr search-res) (caddr search-res) env))
+                            (apply-env saved-env search-sym)))))))
 
 ; Grammatical specification.
 
@@ -102,6 +107,9 @@
     (expression ("let" identifier "=" expression "in" expression) let-exp)
     (expression ("proc" "(" (separated-list identifier ",") ")" expression) proc-exp)
     (expression ("(" expression (arbno expression) ")") call-exp)
+    (expression ("letrec"
+                 (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)
+                 "in" expression) letrec-exp)
     ))
 
 
@@ -148,6 +156,9 @@
               (let ([proc (expval->proc (value-of rator env))]
                     [args (map (lambda (e) (value-of e env)) rands)])
                 (apply-procedure proc args)))
+    (letrec-exp
+     [p-names b-var-lists p-bodys letrec-body]
+     (value-of letrec-body (extend-env-rec p-names b-var-lists p-bodys env)))
     ))
 
 ; Extend the env with multiple variables and values, both of which are
@@ -162,7 +173,6 @@
     (procedure
      [vars body env]
      (value-of body (extend-env-mul vars vals env)))))
-
 
 ; Tests.
 
@@ -219,4 +229,19 @@ in let
 in let
     fact = (makefact makefact)
 in (fact 6)" 720)
+ (double-rec "
+letrec double(x)
+        = if zero?(x) then 0 else -((double -(x, 1)), -2)
+in (double 6)" 12)
+ (mutual-rec "
+letrec
+  even(x) = if zero?(x) then 1 else (odd -(x, 1))
+  odd(x)  = if zero?(x) then 0 else (even -(x, 1))
+in (odd 13)" 1)
+ (mutual-rec-multiple "
+letrec
+  even(x) = if zero?(x) then 1 else (odd -(x, 1))
+  odd(x)  = if zero?(x) then 0 else (even -(x, 1))
+  even-strange(x,cond) = if zero?(cond) then 100 else (even x)
+in -((even-strange 1 0), (even-strange 2 1))" 99 )
  )
