@@ -4,6 +4,7 @@
 
 ; Exercise 3.32: Allow the declaration of any number of mutually recursive unary procedures.
 ; Exercise 3.33: Allow mutual recursive procedures to have multiple arguments.
+; Exercise 3.34: Implement `extend-env-rec` in procedural representation.
 
 ; Data structures.
 
@@ -44,7 +45,9 @@
   (procedure
    [bvars (list-of symbol?)]
    [body expression?]
-   [env environment?]))
+   ; [env environment?]))
+   ; Note: use procedural representation for environments.
+   [env procedure?]))
 
 (define-datatype environment environment?
   (empty-env)
@@ -54,7 +57,7 @@
    (saved-env environment?))
   (extend-env-rec
    (p-names (list-of symbol?))
-   (bvar-lists (list-of (list-of symbol?)))
+   (b-var-lists (list-of (list-of symbol?)))
    (p-bodys (list-of expression?))
    (saved-env environment?)))
 
@@ -84,6 +87,44 @@
                         (if search-res
                             (proc-val (procedure (cadr search-res) (caddr search-res) env))
                             (apply-env saved-env search-sym)))))))
+
+; Procedural representation for environments (denoted as `*environmentp*` and `*envp*`).
+; Because of exercise 3.34, following code uses this representation for environments,
+; which should have 'envp' in related names.
+(define (empty-envp)
+  ; Return a lambda as `apply-envp`.
+  (lambda (env search-sym)
+    (eopl:error 'apply-envp "No binding for ~s" search-sym)))
+
+(define (extend-envp var val saved-env)
+  ; Return `apply-envp`.
+  (lambda (env search-sym)
+    (if (eqv? search-sym var)
+        val
+        (apply-envp saved-env search-sym))))
+
+(define (extend-envp-rec p-names b-var-lists p-bodys saved-env)
+  ; Return `apply-envp`.
+  (lambda (env search-sym)
+    (let* ([curr-procs (map list p-names b-var-lists p-bodys)]
+           [search-res (assoc search-sym curr-procs)])
+      (if search-res
+          (proc-val (procedure (cadr search-res) (caddr search-res) env))
+          (apply-envp saved-env search-sym)))))
+
+; Surprise! It's necessary to pass env it self, since `extend-envp-rec` is inherently recursive.
+(define (apply-envp env search-sym)
+  (env env search-sym))
+
+(define init-envp
+  (lambda ()
+    (extend-envp
+     'i (num-val 1)
+     (extend-envp
+      'v (num-val 5)
+      (extend-envp
+       'x (num-val 10)
+       (empty-envp))))))
 
 ; Grammatical specification.
 
@@ -128,12 +169,14 @@
 ; value-of-program: Program -> ExpVal
 (define (value-of-program pgm)
   (cases program pgm
-    (a-program [exp1] (value-of exp1 (init-env)))))
+    ; Note: use procedural representation for environments.
+    (a-program [exp1] (value-of exp1 (init-envp)))))
 ; value-of: Exp Env -> ExpVal
 (define (value-of exp env)
   (cases expression exp
     (const-exp [num] (num-val num))
-    (var-exp [var] (apply-env env var))
+    ; Note: use procedural representation for environments.
+    (var-exp [var] (apply-envp env var))
     (diff-exp
      [exp1 exp2]
      (let ([num1 (expval->num (value-of exp1 env))]
@@ -150,7 +193,8 @@
          (value-of exp3 env)))
     (let-exp
      [var exp body]
-     (value-of body (extend-env var (value-of exp env) env)))
+     ; Note: use procedural representation for environments.
+     (value-of body (extend-envp var (value-of exp env) env)))
     (proc-exp [vars body] (proc-val (procedure vars body env)))
     (call-exp [rator rands]
               (let ([proc (expval->proc (value-of rator env))]
@@ -158,7 +202,8 @@
                 (apply-procedure proc args)))
     (letrec-exp
      [p-names b-var-lists p-bodys letrec-body]
-     (value-of letrec-body (extend-env-rec p-names b-var-lists p-bodys env)))
+     ; Note: use procedural representation for environments.
+     (value-of letrec-body (extend-envp-rec p-names b-var-lists p-bodys env)))
     ))
 
 ; Extend the env with multiple variables and values, both of which are
@@ -166,7 +211,8 @@
 (define (extend-env-mul vars vals env)
   (if (null? vars) env
       (extend-env-mul (cdr vars) (cdr vals)
-                      (extend-env (car vars) (car vals) env))))
+                      ; Note: use procedural representation for environments.
+                      (extend-envp (car vars) (car vals) env))))
 
 (define (apply-procedure proc1 vals)
   (cases proc proc1
