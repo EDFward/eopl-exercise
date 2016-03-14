@@ -120,10 +120,9 @@
     ...))
 
 (check-run
- ;; simple applications
  (apply-proc-in-rator-pos "(proc(x) -(x,1)  30)" 29)
  (apply-simple-proc "let f = proc (x) -(x,1) in (f 30)" 29)
- (let-to-proc "(proc(f)(f 30)  proc(x)-(x,1))" 29)¬
+ (let-to-proc "(proc(f)(f 30)  proc(x)-(x,1))" 29)
  
  (nested-procs-1 "((proc (x) proc (y) -(x,y)  5) 6)" -1)
  (nested-procs-2 "let f = proc(x) proc (y) -(x,y) in ((f -(10,5)) 6)"
